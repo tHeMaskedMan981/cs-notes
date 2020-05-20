@@ -65,7 +65,8 @@ PostgreSQL since version 9.3 [8], MySQL since version 5.7, and IBM DB2 since ver
 A hybrid of the relational and document models is a good route for databases to take
 in the future
 
-\
+
+
 ## Query languages for Data
 **Imperative language** - An imperative language tells the computer to perform certain operations in a certain
 order. You can imagine stepping through the code line by line, evaluating conditions, updating variables, and deciding whether to go around the loop one more time.
@@ -86,5 +87,9 @@ MapReduce is neither a declarative query language nor a fully imperative query A
 \
 \
 TO DO :
-## Graph like data-models
+## Graph-like Data Models
+### Property graphs
+### Cypher query language
+### Graph queris in SQL
+### Triple stores and SPARQL
 ## The Foundation - Datalog
