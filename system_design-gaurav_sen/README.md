@@ -61,7 +61,7 @@ Therefore the problem is not load balancing, but adding and removing servers.
 - We can use multiple hash functions, h1,h2,..,hk. all of these functions map to a value on a circle, and we follow the same approach for assigning requests. 
 - In this case chances of the distribution getting skewed decreases. 
 
-<Insert Image>
+<img src = "consistent-hashing.jpg" >
 
 ## Message Queues
 
@@ -136,3 +136,126 @@ to take care of failures, can have master slave architecture -
 
 Quite tough to implement in practice
 
+
+## Distributed rate limiting
+
+**Cascading Failure Problem** - servers crash one after another because of increasing loads with every crash.
+
+Need rate limiting to mitigate this problem:
+- Prepare a queue of requests for each server. 
+- when a server crashes, the load balancer will put the requests into other server's queue, but the queue will only expand till it reaches it's compute capacity.
+- Any more requests will be dropped by the server. better to serve some users than no users. 
+- Need to bring another scaling server during the mean time.
+
+
+Black Friday kind of events - pre-scale or auto-scale
+Viral - use rate limiting or autoscaling. 
+
+**Bulk Job scheduling** - can have cron jobs to periodically do some computation. Do batch processing. Dont overload the server with the whole request at a time. Can divide in smaller chunks (1000 emails)
+
+**Popular Posts** - When a popular person posts something, it needs to be sent to all the followers feed. While doing that, we can just provide the important information, like video, and show an approximate for the metadata, like views, comments, etc. This might save a lot of database queries. 
+
+ **Caching** - can cache responses for popular requests (key value pairs). Can handle more load this way. 
+
+ **Gradual Deployment** - deploy servers in parts
+
+ **Coupling** - Can cache the result of querying other microservices to save time over network calls. 
+
+
+ ## Distributed Caching
+
+ Use Cases: 
+ - Avoid Network Calls
+ - Reduce Computations
+ - Reduce DB Load 
+
+ **Cache Policy** - The rules for adding and evicting data from the cache
+
+**LRU** - Least Recently Used. Most Popular. add the recent queries to db on the top of cache, and remove the least recent entries from the bottom of the cache. 
+
+**LFU** - Least frequently used. Not frequently used.
+
+**Sliding window based policy** - Used in daphene server
+
+Problems with bad cache policy: 
+- Thrashing - loading and evicting data frequently. Happens if small cache
+- Extra Calls (mostly misses)
+- Data Consistency (something updated in the database, while cache still serving the older data)
+
+Can place the cache in memory:
+- it will use up memory on server.
+- if the server crashes, the cache is lost
+- Data consistencies among the servers. 
+- Faster 
+- Simpler to implement
+
+Can place closer to Database (Distributed Global Cache):
+- Faster than using database directly. 
+- More Accurate
+- Ex : Redis - persistent storage like a cache 
+- Slightly slower than in-memory. 
+- Can scale redis caches independently
+
+**Write-Through cache** - Whenever an update required, hit the cache, see if the key present, if yes, update it, and then update the database.
+- updating cache and database helps in data consistency
+- Cant implement in the case of in-memory cache. 
+
+**Write Back Cache** - First update the database. Then either send the data from the database to the cache mentioning the update, or check if the cache have the entry. If yes, evict it. 
+- When the value is asked again, it is  checked in cache, we get cache miss, returned from DB, cache updated. 
+- Can be used for critical data (financial data)
+- Can be used for in-memory cache. 
+- Is Expensive to perform in some cases. 
+
+**Hybrid Solution**: 
+- Dont write back updates to database instantly. Update the cache and wait (only if non-critical data)
+- Write in batches. saves network calls. 
+- Faster
+
+
+## The Power of Logs - Scaling writes
+
+### Log structured merge trees
+
+Databases use B + Tree data structure internally. This is similar to binary search trees without the binary in them. 
+
+It provides O(logn) insertion and deletion times.
+
+With every insert or select operation, an ACK is sent back on successful completion. If we want to optimize, we have to save on I/O calls, Headers, etc. 
+
+One way is to condense the data queries into a single query. 
+Also, we can use a linked list to get O(1) writes. But the read times are terrible(O(n)).
+
+To improve on read times, we can use a sorted array. 
+
+Advantages:
+- Lesser I/O operations
+- Fast writes
+
+Disadvantages:
+- Additional memory required by server to condense queries.
+- Slow reads
+
+Now to keep sorted array, we have to do sorting on the data, which is expensive if data size increases. 
+
+keep small segments of records, append at the end, and flush them to the database at once. If we sort it everytime, time taken sort(N+k), where N is the existing number of items, and k is size of segment. If N grows to large numbers, it becomes really slow. 
+
+Instead, keep segments of small sizes in sorted fashion. like segments of size 6. if 2 segments of size 6, merge them to make it of size 12, and so on. Merging small segments is not so expensive, and merging segments of same size reduces search time. Can do the merging in the backend at non peak hours.
+
+Also, can use bloom filters to improve search speed. It is a constant size filter, similar to hash table. It tells if a record is not in a segment. Though it can give false positives, i.e, we cant be sure if a record is present or not.
+
+
+## AntiPatterns to avoid Database failing
+
+### Using databases as message queues
+
+Frequent Polling - Load on DB (lots of read operations)
+Long interval polling - inefficient
+
+Databases are designed to be efficient in either writing or reading, but not both. So should use it accordingly in our application. 
+
+Not scalable - as more servers add up, databases are not able to scale to handle the requests. 
+
+Create, Read, Update, Delete (CRUD).
+these operations are a bit expensive. 
+
+Should use message queuse
